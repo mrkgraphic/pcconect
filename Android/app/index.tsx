@@ -20,10 +20,10 @@ export default function HomeScreen() {
     onPanResponderMove:(_,g)=>{
       const dx=g.dx-last.current.x,dy=g.dy-last.current.y;last.current={x:g.dx,y:g.dy};
       if(Math.abs(g.dx)+Math.abs(g.dy)>3)moved.current=true;
-      if(paired && (dx!==0||dy!==0))sendCommand({type:"mouseMove",x:Math.round(dx*1.8),y:Math.round(dy*1.8)});
+      if((dx!==0||dy!==0))sendCommand({type:"mouseMove",x:Math.round(dx*1.8),y:Math.round(dy*1.8)});
     },
     onPanResponderRelease:()=>{
-      if(!moved.current && paired)sendCommand({type:"mouseButton",button:"left",down:true}),sendCommand({type:"mouseButton",button:"left",down:false});
+      if(!moved.current)sendCommand({type:"mouseButton",button:"left",down:true}),sendCommand({type:"mouseButton",button:"left",down:false});
     }
   })).current;
 
