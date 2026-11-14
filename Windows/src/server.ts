@@ -77,7 +77,7 @@ export function startLocalHost(statusCallback: (status: HostInfo["status"]) => v
     httpServer.once("error", reject);
     httpServer.listen(PORT, "0.0.0.0", () => {
       httpServer.removeListener("error", reject);
-      resolve({ port: PORT, pairingCode, status: "waiting" });
+      hostStarted = true;\n      resolve({ port: PORT, pairingCode, status: "waiting" });
     });
   });
 }
