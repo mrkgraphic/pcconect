@@ -18,7 +18,7 @@ export default function HomeScreen() {
   const [sharedFiles,setSharedFiles]=useState<Array<{name:string;size:number;modified:string}>>([]);
   const [transferStatus,setTransferStatus]=useState("");
   const [transferring,setTransferring]=useState(false);
-  const socket=useRef<WebSocket|null>(null); const token=useRef<string|null>(null); const last=useRef({x:0,y:0}); const moved=useRef(false);
+  const socket=useRef<WebSocket|null>(null); const token=useRef<string|null>(null); const last=useRef({x:0,y:0}); const moved=useRef(false); const holdTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const dragging=useRef(false); const lastTap=useRef(0);
 
   const sendCommand=(command:Record<string,unknown>)=>{
     if(socket.current?.readyState===WebSocket.OPEN && token.current) socket.current.send(JSON.stringify({...command,sessionToken:token.current}));
@@ -26,10 +26,10 @@ export default function HomeScreen() {
   const touchpad=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>true,
     onMoveShouldSetPanResponder:()=>true,
-    onPanResponderGrant:()=>{last.current={x:0,y:0};moved.current=false;},
+    onPanResponderGrant:()=>{last.current={x:0,y:0};moved.current=false;dragging.current=false;if(holdTimer.current)clearTimeout(holdTimer.current);holdTimer.current=setTimeout(()=>{dragging.current=true;sendCommand({type:"mouseButton",button:"left",down:true});},420);},
     onPanResponderMove:(_,g)=>{
       const dx=g.dx-last.current.x,dy=g.dy-last.current.y;last.current={x:g.dx,y:g.dy};
-      if(Math.abs(g.dx)+Math.abs(g.dy)>3)moved.current=true;
+      if(Math.abs(g.dx)+Math.abs(g.dy)>3){moved.current=true;if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}}
       if((dx!==0||dy!==0))sendCommand({type:"mouseMove",x:Math.round(dx*1.8),y:Math.round(dy*1.8)});
     },
     onPanResponderRelease:()=>{
@@ -114,6 +114,7 @@ export default function HomeScreen() {
   const stopVoice=()=>ExpoSpeechRecognitionModule.stop();
   const sendText=()=>{if(draft.trim()){sendCommand({type:"text",text:draft.trim()});setDraft("");setVoiceStatus("Reviewed text sent to PC");}};
   const key=(name:string)=>{sendCommand({type:"key",key:name,down:true});sendCommand({type:"key",key:name,down:false});};
+  const shortcut=(modifier:string,name:string)=>{sendCommand({type:"key",key:modifier,down:true});sendCommand({type:"key",key:name,down:true});sendCommand({type:"key",key:name,down:false});sendCommand({type:"key",key:modifier,down:false});};
 
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS==="ios"?"padding":undefined}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
@@ -129,7 +130,7 @@ export default function HomeScreen() {
       </View>
       {paired&&<View style={styles.panel}>
         <Text style={styles.sectionTitle}>Wireless Mouse</Text><Text style={styles.hint}>Ungli se pad par move karein. Tap = left click.</Text>
-        <View {...touchpad.panHandlers} style={styles.touchpad}><Text style={styles.touchText}>TOUCHPAD</Text><Text style={styles.hint}>Move · Tap to click</Text></View>
+        <View {...touchpad.panHandlers} style={styles.touchpad}><Text style={styles.touchText}>TOUCHPAD</Text><Text style={styles.hint}>Move · Tap click · Double tap double-click · Hold and move to drag</Text></View>
         <View style={styles.row}><Pressable style={styles.action} onPress={()=>{sendCommand({type:"mouseButton",button:"left",down:true});sendCommand({type:"mouseButton",button:"left",down:false});}}><Text style={styles.actionText}>Left Click</Text></Pressable><Pressable style={styles.action} onPress={()=>{sendCommand({type:"mouseButton",button:"right",down:true});sendCommand({type:"mouseButton",button:"right",down:false});}}><Text style={styles.actionText}>Right Click</Text></Pressable></View>
         <View style={styles.row}><Pressable style={styles.action} onPress={()=>sendCommand({type:"mouseScroll",delta:480})}><Text style={styles.actionText}>Scroll Up</Text></Pressable><Pressable style={styles.action} onPress={()=>sendCommand({type:"mouseScroll",delta:-480})}><Text style={styles.actionText}>Scroll Down</Text></Pressable></View>
         <Text style={[styles.sectionTitle,{marginTop:18}]}>Voice Typing</Text>
@@ -142,6 +143,9 @@ export default function HomeScreen() {
         <Text style={[styles.sectionTitle,{marginTop:18}]}>Keyboard / Text</Text><TextInput value={draft} onChangeText={setDraft} placeholder="Type text to send to focused PC app" placeholderTextColor="#71857a" style={styles.input} multiline/>
         <Pressable onPress={sendText} style={styles.primary}><Text style={styles.primaryText}>Send Text to PC</Text></Pressable>
         <View style={styles.row}>{["enter","backspace","tab","escape"].map(k=><Pressable key={k} onPress={()=>key(k)} style={styles.keyButton}><Text style={styles.actionText}>{k.toUpperCase()}</Text></Pressable>)}</View>
+        <Text style={[styles.label,{marginTop:12}]}>Quick Shortcuts</Text>
+        <View style={styles.row}>{[{label:"Copy",key:"c"},{label:"Paste",key:"v"},{label:"Select All",key:"a"},{label:"Undo",key:"z"}].map(item=><Pressable key={item.key} onPress={()=>shortcut("ctrl",item.key)} style={styles.keyButton}><Text style={styles.actionText}>{item.label}</Text></Pressable>)}</View>
+        <View style={styles.row}>{[{label:"Alt + Tab",mod:"alt",key:"tab"},{label:"Win + D",mod:"meta",key:"d"}].map(item=><Pressable key={item.label} onPress={()=>shortcut(item.mod,item.key)} style={styles.keyButton}><Text style={styles.actionText}>{item.label}</Text></Pressable>)}</View>
       </View>}
       {paired&&<View style={styles.panel}>
         <Text style={styles.sectionTitle}>Two-way File Transfer</Text>
