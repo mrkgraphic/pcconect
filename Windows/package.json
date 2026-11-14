@@ -12,6 +12,16 @@
     "pack": "npm run native:build && electron-builder --dir",
     "dist": "npm run native:build && electron-builder"
   },
+  "build": {
+    "appId": "com.mrkgraphic.connect",
+    "productName": "MRK Connect",
+    "files": ["dist/**/*", "renderer/**/*", "package.json"],
+    "extraResources": [
+      { "from": "native/MrkInput/bin/Release/net8.0-windows", "to": "native", "filter": ["MrkInput.exe"] }
+    ],
+    "win": { "target": ["nsis"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "electron": "^38.0.0",
