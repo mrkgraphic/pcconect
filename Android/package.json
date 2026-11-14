@@ -6,7 +6,9 @@
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "android:dev": "npx expo run:android",
+    "prebuild:android": "npx expo prebuild --platform android"
   },
   "dependencies": {
     "expo": "~54.0.0",
