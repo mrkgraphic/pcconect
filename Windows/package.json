@@ -8,8 +8,9 @@
     "dev": "npm run build && electron .",
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "native:build": "dotnet publish native/MrkInput/MrkInput.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o native/MrkInput/bin/Release/net8.0-windows",
+    "pack": "npm run native:build && electron-builder --dir",
+    "dist": "npm run native:build && electron-builder"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
