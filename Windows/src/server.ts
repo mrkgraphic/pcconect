@@ -2,7 +2,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { networkInterfaces } from "node:os";
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, readdir, stat } from "node:fs/promises";
+import { mkdir, readdir, stat, realpath } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
@@ -42,14 +42,27 @@ async function handleHttp(req:IncomingMessage,res:ServerResponse){
     await mkdir(sharedDir,{recursive:true});
     const entries=await readdir(sharedDir,{withFileTypes:true});
     const files=[];
-    for(const entry of entries){if(!entry.isFile())continue;const full=path.join(sharedDir,entry.name);const info=await stat(full);files.push({name:entry.name,size:info.size,modified:info.mtime.toISOString()});}
-    json(res,200,{files});return;
+    for(const entry of entries){
+      // Never follow symlinks: MRK-Shared must not become a bridge to files elsewhere.
+      if(!entry.isFile())continue;
+      const full=path.join(sharedDir,entry.name);
+      try {
+        const info=await stat(full);
+        if(!info.isFile())continue;
+        files.push({name:entry.name,size:info.size,modified:info.mtime.toISOString()});
+      } catch { /* Ignore files removed while listing. */ }
+    }
+    files.sort((a,b)=>b.modified.localeCompare(a.modified));
+    json(res,200,{files:files.slice(0,500)});return;
   }
   if(url.pathname==="/api/download"&&req.method==="GET"){
     let name:string;try{name=safeName(url.searchParams.get("name")??"");}catch{json(res,400,{error:"INVALID_FILENAME"});return;}
     const target=path.resolve(sharedDir,name);
     if(path.dirname(target)!==sharedDir){json(res,400,{error:"INVALID_PATH"});return;}
-    try{const info=await stat(target);if(!info.isFile()){json(res,404,{error:"NOT_FOUND"});return;}res.writeHead(200,{"content-type":"application/octet-stream","content-length":info.size,"content-disposition":`attachment; filename*=UTF-8''${encodeURIComponent(name)}`,"cache-control":"no-store"});createReadStream(target).pipe(res);}
+    try{const resolved=await realpath(target);
+      const allowedRoot=await realpath(sharedDir);
+      if(path.dirname(resolved)!==allowedRoot){json(res,403,{error:"OUTSIDE_SHARED_FOLDER"});return;}
+      const info=await stat(resolved);if(!info.isFile()){json(res,404,{error:"NOT_FOUND"});return;}res.writeHead(200,{"content-type":"application/octet-stream","content-length":info.size,"content-disposition":`attachment; filename*=UTF-8''${encodeURIComponent(name)}`,"cache-control":"no-store"});createReadStream(resolved).pipe(res);}
     catch{json(res,404,{error:"NOT_FOUND"});}return;
   }
   json(res,404,{error:"NOT_FOUND"});
