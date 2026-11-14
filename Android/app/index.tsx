@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 type PairResult = { type: "pairResult"; accepted: boolean; sessionToken?: string };
 const DEFAULT_PORT = "47831";
@@ -8,6 +11,9 @@ export default function HomeScreen() {
   const [address,setAddress]=useState(""); const [port,setPort]=useState(DEFAULT_PORT); const [pin,setPin]=useState("");
   const [status,setStatus]=useState("Not connected"); const [error,setError]=useState(""); const [paired,setPaired]=useState(false);
   const [draft,setDraft]=useState("");
+  const [sharedFiles,setSharedFiles]=useState<Array<{name:string;size:number;modified:string}>>([]);
+  const [transferStatus,setTransferStatus]=useState("");
+  const [transferring,setTransferring]=useState(false);
   const socket=useRef<WebSocket|null>(null); const token=useRef<string|null>(null); const last=useRef({x:0,y:0}); const moved=useRef(false);
 
   const sendCommand=(command:Record<string,unknown>)=>{
@@ -38,7 +44,49 @@ export default function HomeScreen() {
     ws.onerror=()=>{setStatus("Connection failed");setError("PC IP, port aur same Wi-Fi/hotspot check karein.");};
     ws.onclose=()=>{setPaired(false);token.current=null;setStatus("Disconnected");};
   };
-  const disconnect=()=>{socket.current?.close();socket.current=null;token.current=null;setPaired(false);setStatus("Disconnected");};
+  const disconnect=()=>{socket.current?.close();socket.current=null;token.current=null;setPaired(false);setSharedFiles([]);setStatus("Disconnected");};
+  const httpBase=()=>`http://${address.trim()}:${port.trim()}`;
+  const authHeaders=()=>({Authorization:`Bearer ${token.current??""}`});
+  const refreshSharedFiles=async()=>{
+    if(!token.current)return;
+    try{
+      const response=await fetch(`${httpBase()}/api/files`,{headers:authHeaders()});
+      if(!response.ok)throw new Error(response.status===401?"Session expired":"Could not list shared files");
+      const data=await response.json() as {files:Array<{name:string;size:number;modified:string}>};
+      setSharedFiles(data.files??[]);
+      setTransferStatus(data.files?.length?`${data.files.length} shared file(s) available`:"No files in MRK-Shared folder");
+    }catch(e){setTransferStatus(e instanceof Error?e.message:"File list failed");}
+  };
+  const uploadFile=async()=>{
+    if(!token.current||transferring)return;
+    try{
+      const picked=await DocumentPicker.getDocumentAsync({copyToCacheDirectory:true,multiple:false});
+      if(picked.canceled||!picked.assets?.[0])return;
+      const file=picked.assets[0];
+      if(file.size!==undefined&&file.size>100*1024*1024){Alert.alert("File too large","Maximum file size is 100 MiB.");return;}
+      setTransferring(true);setTransferStatus("Uploading "+file.name+"…");
+      const result=await FileSystem.uploadAsync(`${httpBase()}/api/upload?name=${encodeURIComponent(file.name)}`,file.uri,{
+        httpMethod:"POST",uploadType:FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers:{...authHeaders(),"Content-Type":"application/octet-stream"}
+      });
+      if(result.status<200||result.status>=300)throw new Error(`Upload failed (HTTP ${result.status})`);
+      setTransferStatus("Uploaded: "+file.name);
+    }catch(e){setTransferStatus(e instanceof Error?e.message:"Upload failed");}
+    finally{setTransferring(false);}
+  };
+  const downloadFile=async(name:string)=>{
+    if(!token.current||transferring)return;
+    try{
+      setTransferring(true);setTransferStatus("Downloading "+name+"…");
+      const target=(FileSystem.cacheDirectory??FileSystem.documentDirectory??"")+"mrk-"+Date.now()+"-"+name.replace(/[^a-zA-Z0-9._-]/g,"_");
+      const result=await FileSystem.downloadAsync(`${httpBase()}/api/download?name=${encodeURIComponent(name)}`,target,{headers:authHeaders()});
+      if(result.status<200||result.status>=300)throw new Error(`Download failed (HTTP ${result.status})`);
+      setTransferStatus("Downloaded: "+name);
+      if(await Sharing.isAvailableAsync())await Sharing.shareAsync(result.uri,{dialogTitle:"Save or share "+name});
+      else Alert.alert("Downloaded",`File saved in app cache: ${result.uri}`);
+    }catch(e){setTransferStatus(e instanceof Error?e.message:"Download failed");}
+    finally{setTransferring(false);}
+  };
   const sendText=()=>{if(draft.trim()){sendCommand({type:"text",text:draft});setDraft("");}};
   const key=(name:string)=>{sendCommand({type:"key",key:name,down:true});sendCommand({type:"key",key:name,down:false});};
 
@@ -63,6 +111,17 @@ export default function HomeScreen() {
         <Pressable onPress={sendText} style={styles.primary}><Text style={styles.primaryText}>Send Text to PC</Text></Pressable>
         <View style={styles.row}>{["enter","backspace","tab","escape"].map(k=><Pressable key={k} onPress={()=>key(k)} style={styles.keyButton}><Text style={styles.actionText}>{k.toUpperCase()}</Text></Pressable>)}</View>
       </View>}
+      {paired&&<View style={styles.panel}>
+        <Text style={styles.sectionTitle}>Two-way File Transfer</Text>
+        <Text style={styles.hint}>Phone se PC: file MRK-Received folder mein jayegi. PC se phone: sirf MRK-Shared folder ki files dikhengi. Limit 100 MiB.</Text>
+        <Pressable disabled={transferring} onPress={uploadFile} style={[styles.primary,transferring&&{opacity:0.55}]}><Text style={styles.primaryText}>Choose File & Send to PC</Text></Pressable>
+        <Pressable disabled={transferring} onPress={refreshSharedFiles} style={styles.action}><Text style={styles.actionText}>Refresh PC Shared Files</Text></Pressable>
+        {!!transferStatus&&<Text style={styles.transferStatus}>{transferStatus}</Text>}
+        {sharedFiles.map(file=><View key={file.name} style={styles.fileRow}>
+          <View style={{flex:1}}><Text style={styles.fileName}>{file.name}</Text><Text style={styles.hint}>{(file.size/1024/1024).toFixed(2)} MiB · {new Date(file.modified).toLocaleDateString()}</Text></View>
+          <Pressable disabled={transferring} onPress={()=>downloadFile(file.name)} style={styles.downloadButton}><Text style={styles.actionText}>Download</Text></Pressable>
+        </View>)}
+      </View>}
       <View style={styles.features}><Text style={styles.sectionTitle}>More features in development</Text>{["Voice typing with preview","Restricted two-way file transfer","PC audio on phone speaker","Automatic PC discovery and QR pairing"].map(item=><View key={item} style={styles.feature}><Text style={styles.featureMark}>•</Text><Text style={styles.featureText}>{item}</Text></View>)}</View>
       <Text style={styles.footer}>Pair only with a PC you trust. Local network connection.</Text>
     </ScrollView>
@@ -78,5 +137,5 @@ const styles=StyleSheet.create({
  primary:{backgroundColor:"#16865b",borderRadius:10,alignItems:"center",padding:13,marginTop:14},primaryText:{color:"#fff",fontWeight:"800",fontSize:14},hint:{color:"#9fb5a8",fontSize:11,lineHeight:17},
  touchpad:{height:190,backgroundColor:"#0b1510",borderColor:"#47735c",borderWidth:1,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:10},touchText:{color:"#a8e8c0",fontWeight:"900",letterSpacing:2,marginBottom:8},
  action:{flex:1,backgroundColor:"#20372c",borderRadius:9,padding:12,alignItems:"center"},actionText:{color:"#d9eee1",fontWeight:"700",fontSize:11},keyButton:{flex:1,backgroundColor:"#20372c",borderRadius:8,padding:10,alignItems:"center"},
- features:{marginTop:8},feature:{flexDirection:"row",gap:9,marginBottom:8},featureMark:{color:"#79d6a5",fontSize:17},featureText:{color:"#c1d1c8",fontSize:12},footer:{color:"#82958b",fontSize:10,textAlign:"center",marginTop:13}
+ features:{marginTop:8},feature:{flexDirection:"row",gap:9,marginBottom:8},featureMark:{color:"#79d6a5",fontSize:17},featureText:{color:"#c1d1c8",fontSize:12},fileRow:{flexDirection:"row",alignItems:"center",gap:8,borderTopWidth:1,borderTopColor:"#2c493b",paddingVertical:10},fileName:{color:"#e4f1e9",fontSize:12,fontWeight:"700"},downloadButton:{backgroundColor:"#20372c",padding:10,borderRadius:8},transferStatus:{color:"#9ce2bb",fontSize:11,marginTop:10},footer:{color:"#82958b",fontSize:10,textAlign:"center",marginTop:13}
 });
