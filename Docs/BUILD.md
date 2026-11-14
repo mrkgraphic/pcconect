@@ -30,10 +30,11 @@ Open a second terminal in `Android`:
 
 ```powershell
 npm install
-npx expo start
+npx expo prebuild --platform android
+npx expo run:android
 ```
 
-Use Expo Go only if the selected SDK/modules are supported by the installed Expo Go version. For a device build, use an Android development build or EAS build after the project configuration is finalized.
+Voice recognition uses a native Android module and therefore needs a development build; it will not run inside the standard Expo Go app. After the first native build, start Metro for development with `npx expo start --dev-client`. Speech recognition availability and offline behavior depend on the Android speech service and selected language.
 
 ## Pairing test
 
@@ -45,4 +46,4 @@ Use Expo Go only if the selected SDK/modules are supported by the installed Expo
 
 ## Current limitations
 
-This is a development build, not a security-reviewed release. The current local WebSocket and HTTP endpoints use plain `ws://` and `http://`; do not use them on public, shared, or untrusted networks. Pairing credentials are currently process-lifetime credentials. Automatic discovery, QR pairing, voice recognition, PC audio streaming, persistent device revocation, and a complete Android file-transfer client are still pending. Build success does not mean all product features are complete; verify the actual device workflow before relying on it.
+This is a development build, not a security-reviewed release. The current local WebSocket and HTTP endpoints use plain `ws://` and `http://`; do not use them on public, shared, or untrusted networks. Pairing credentials are currently process-lifetime credentials. Automatic discovery, QR pairing, PC audio streaming, persistent device revocation, and full transfer progress/cancellation are still pending. Android voice recognition and reviewed text submission are implemented in code but need a native device build and physical-device testing. Android upload/download UI is implemented but also needs end-to-end testing. Build success does not mean all product features are complete; verify the actual device workflow before relying on it.
