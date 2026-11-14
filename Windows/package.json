@@ -1,0 +1,20 @@
+{
+  "name": "@mrk-connect/windows",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MRK Connect Windows desktop companion",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "npm run build && electron .",
+    "build": "tsc -p tsconfig.json",
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0",
+    "typescript": "^5.9.0"
+  }
+}
