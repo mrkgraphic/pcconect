@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "MRK Connect",
+    "slug": "mrk-connect",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "mrkconnect",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.mrkgraphic.connect",
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE", "RECORD_AUDIO", "FOREGROUND_SERVICE"]
+    },
+    "plugins": ["expo-router"]
+  }
+}
