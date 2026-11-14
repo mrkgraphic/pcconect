@@ -2,12 +2,14 @@ import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
+import { NativeInput } from "./native-input";
 
 const PORT = 47831;
 const MAX_MESSAGE_BYTES = 16 * 1024;
 const pairingCode = String(randomInt(100000, 1000000));
 const sessions = new Map<WebSocket, Buffer>();
 const attemptsByIp = new Map<string, { count: number; resetAt: number }>();
+const nativeInput = new NativeInput();
 const httpServer = createServer((_req, res) => {
   res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
   res.end(JSON.stringify({ name: "MRK Connect", version: 1, port: PORT }));
@@ -46,6 +48,16 @@ function allowPair(ip: string): boolean {
   entry.count += 1;
   return true;
 }
+function validInput(message: Record<string, unknown>): boolean {
+  switch (message.type) {
+    case "mouseMove": return Number.isInteger(message.x) && Number.isInteger(message.y) && Math.abs(message.x as number) <= 100000 && Math.abs(message.y as number) <= 100000;
+    case "mouseButton": return ["left", "right", "middle"].includes(String(message.button)) && typeof message.down === "boolean";
+    case "mouseScroll": return Number.isInteger(message.delta) && Math.abs(message.delta as number) <= 1200;
+    case "key": return typeof message.key === "string" && message.key.length <= 12 && typeof message.down === "boolean";
+    case "text": return typeof message.text === "string" && message.text.length <= 4000;
+    default: return false;
+  }
+}
 
 wss.on("connection", (ws, request) => {
   const ip = request.socket.remoteAddress ?? "unknown";
@@ -77,8 +89,9 @@ wss.on("connection", (ws, request) => {
       ws.close(1008, "Authentication required");
       return;
     }
-    if (message.type === "ping") send(ws, { type: "pong" });
-    else send(ws, { type: "error", code: "FEATURE_NOT_READY", message: "This command is not enabled yet." });
+    if (message.type === "ping") { send(ws, { type: "pong" }); return; }
+    if (!validInput(message)) { send(ws, { type: "error", code: "INVALID_INPUT" }); return; }
+    if (!nativeInput.send(message as never)) send(ws, { type: "error", code: "INPUT_ADAPTER_UNAVAILABLE", message: "Build the Windows native input helper first." });
   });
   ws.on("close", () => {
     sessions.delete(ws);
@@ -88,6 +101,7 @@ wss.on("connection", (ws, request) => {
 
 export function startLocalHost(statusCallback: (status: HostInfo["status"]) => void): Promise<HostInfo> {
   onStatus = statusCallback;
+  nativeInput.start();
   return new Promise((resolve, reject) => {
     httpServer.once("error", reject);
     httpServer.listen(PORT, "0.0.0.0", () => {
@@ -98,9 +112,10 @@ export function startLocalHost(statusCallback: (status: HostInfo["status"]) => v
   });
 }
 export function stopLocalHost(): Promise<void> {
-  if (!hostStarted) return Promise.resolve();
+  if (!hostStarted) { nativeInput.stop(); return Promise.resolve(); }
   hostStarted = false;
   sessions.clear();
+  nativeInput.stop();
   for (const client of wss.clients) client.close(1001, "Host shutting down");
   return new Promise((resolve) => { wss.close(() => httpServer.close(() => resolve())); });
 }
