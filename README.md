@@ -6,7 +6,7 @@
 
 ## Product goals
 
-- Wireless keyboard: live text entry and special keys/shortcuts.
+- Wireless keyboard + mouse: live text entry, special keys/shortcuts, touchpad pointer, tap/click, double-click, right-click, scroll and drag.
 - Voice typing: Android microphone/speech recognition sends approved text to Windows.
 - Two-way file transfer: phone uploads to a restricted PC receive folder; phone downloads only from a configured PC shared folder.
 - PC audio on phone speaker: capture PC output and play it on Android.
@@ -63,6 +63,7 @@ pcconect/
 
 ### Phase 2 — Keyboard and voice
 - [ ] Implement live keyboard input and special keys/shortcuts.
+- [ ] Implement touchpad mouse: pointer movement, left/right/double click, scroll and drag.
 - [ ] Preserve the proven keyboard behavior from the existing prototype during migration.
 - [ ] Add Android speech recognition, preview and send.
 - [ ] Test language/device support and document offline speech limitations.
