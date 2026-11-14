@@ -26,14 +26,45 @@ export default function HomeScreen() {
   const touchpad=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>true,
     onMoveShouldSetPanResponder:()=>true,
-    onPanResponderGrant:()=>{last.current={x:0,y:0};moved.current=false;dragging.current=false;if(holdTimer.current)clearTimeout(holdTimer.current);holdTimer.current=setTimeout(()=>{dragging.current=true;sendCommand({type:"mouseButton",button:"left",down:true});},420);},
+    onPanResponderGrant:()=>{
+      last.current={x:0,y:0};moved.current=false;dragging.current=false;
+      if(holdTimer.current)clearTimeout(holdTimer.current);
+      holdTimer.current=setTimeout(()=>{
+        dragging.current=true;
+        sendCommand({type:"mouseButton",button:"left",down:true});
+      },420);
+    },
     onPanResponderMove:(_,g)=>{
-      const dx=g.dx-last.current.x,dy=g.dy-last.current.y;last.current={x:g.dx,y:g.dy};
-      if(Math.abs(g.dx)+Math.abs(g.dy)>3){moved.current=true;if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}}
-      if((dx!==0||dy!==0))sendCommand({type:"mouseMove",x:Math.round(dx*1.8),y:Math.round(dy*1.8)});
+      const dx=g.dx-last.current.x,dy=g.dy-last.current.y;
+      last.current={x:g.dx,y:g.dy};
+      if(Math.abs(g.dx)+Math.abs(g.dy)>3){
+        moved.current=true;
+        if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}
+      }
+      if(dx!==0||dy!==0)sendCommand({type:"mouseMove",x:Math.round(dx*1.8),y:Math.round(dy*1.8)});
     },
     onPanResponderRelease:()=>{
-      if(!moved.current)sendCommand({type:"mouseButton",button:"left",down:true}),sendCommand({type:"mouseButton",button:"left",down:false});
+      if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}
+      if(dragging.current){
+        sendCommand({type:"mouseButton",button:"left",down:false});
+        dragging.current=false;
+        return;
+      }
+      if(!moved.current){
+        const now=Date.now();
+        sendCommand({type:"mouseButton",button:"left",down:true});
+        sendCommand({type:"mouseButton",button:"left",down:false});
+        if(now-lastTap.current<320){
+          sendCommand({type:"mouseButton",button:"left",down:true});
+          sendCommand({type:"mouseButton",button:"left",down:false});
+          lastTap.current=0;
+        }else lastTap.current=now;
+      }
+    },
+    onPanResponderTerminate:()=>{
+      if(holdTimer.current){clearTimeout(holdTimer.current);holdTimer.current=null;}
+      if(dragging.current)sendCommand({type:"mouseButton",button:"left",down:false});
+      dragging.current=false;
     }
   })).current;
 
