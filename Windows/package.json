@@ -13,23 +13,42 @@
     "dist": "npm run native:build && electron-builder"
   },
   "dependencies": {
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "qrcode": "^1.5.4"
   },
   "build": {
     "appId": "com.mrkgraphic.connect",
     "productName": "MRK Connect",
-    "files": ["dist/**/*", "renderer/**/*", "package.json"],
-    "extraResources": [
-      { "from": "native/MrkInput/bin/Release/net8.0-windows", "to": "native", "filter": ["MrkInput.exe"] }
+    "files": [
+      "dist/**/*",
+      "renderer/**/*",
+      "package.json"
     ],
-    "win": { "target": ["nsis"] },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "extraResources": [
+      {
+        "from": "native/MrkInput/bin/Release/net8.0-windows",
+        "to": "native",
+        "filter": [
+          "MrkInput.exe"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
     "electron": "^38.0.0",
     "electron-builder": "^26.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "@types/qrcode": "^1.5.5"
   }
 }
