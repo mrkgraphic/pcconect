@@ -1,0 +1,52 @@
+name: MRK Connect CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Windows/**"
+      - "Android/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-electron:
+    name: Windows Electron typecheck/build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Compile TypeScript
+        run: npm run build
+
+  android-expo:
+    name: Android Expo typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
