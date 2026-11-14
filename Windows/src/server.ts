@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { networkInterfaces } from "node:os";
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 
@@ -13,10 +14,19 @@ const httpServer = createServer((_req, res) => {
 });
 const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_MESSAGE_BYTES });
 
-export type HostInfo = { port: number; pairingCode: string; status: "waiting" | "connected" };
+export type HostInfo = { port: number; pairingCode: string; addresses: string[]; status: "waiting" | "connected" };
 let onStatus: (status: HostInfo["status"]) => void = () => undefined;
 let hostStarted = false;
 
+function getLocalIPv4Addresses(): string[] {
+  const result: string[] = [];
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      if (entry.family === "IPv4" && !entry.internal && !entry.address.startsWith("169.254.")) result.push(entry.address);
+    }
+  }
+  return [...new Set(result)];
+}
 function send(ws: WebSocket, value: unknown): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(value));
 }
@@ -42,12 +52,8 @@ wss.on("connection", (ws, request) => {
   let authenticated = false;
   ws.on("message", (raw) => {
     let message: Record<string, unknown>;
-    try {
-      message = JSON.parse(raw.toString()) as Record<string, unknown>;
-    } catch {
-      ws.close(1003, "Invalid JSON");
-      return;
-    }
+    try { message = JSON.parse(raw.toString()) as Record<string, unknown>; }
+    catch { ws.close(1003, "Invalid JSON"); return; }
     if (message.type === "pairRequest") {
       if (authenticated || !allowPair(ip)) {
         send(ws, { type: "pairResult", accepted: false, reason: "RATE_LIMITED" });
@@ -87,7 +93,7 @@ export function startLocalHost(statusCallback: (status: HostInfo["status"]) => v
     httpServer.listen(PORT, "0.0.0.0", () => {
       httpServer.removeListener("error", reject);
       hostStarted = true;
-      resolve({ port: PORT, pairingCode, status: "waiting" });
+      resolve({ port: PORT, pairingCode, addresses: getLocalIPv4Addresses(), status: "waiting" });
     });
   });
 }
@@ -96,7 +102,5 @@ export function stopLocalHost(): Promise<void> {
   hostStarted = false;
   sessions.clear();
   for (const client of wss.clients) client.close(1001, "Host shutting down");
-  return new Promise((resolve) => {
-    wss.close(() => httpServer.close(() => resolve()));
-  });
+  return new Promise((resolve) => { wss.close(() => httpServer.close(() => resolve())); });
 }
