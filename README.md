@@ -2,7 +2,7 @@
 
 **MRK Connect** is a local-network companion system that connects an Android phone to a Windows PC over the same Wi-Fi network or a phone hotspot. Core local features are designed to work without internet access.
 
-> Project status: **Foundation / planning**. The folders and protocol are being established first. A feature is not considered implemented until its code and tests are present.
+> Project status: **Active development / partial implementation**. Windows pairing host, Android manual PIN pairing UI, a Windows native input helper, Android touchpad/keyboard controls, and restricted Windows file-transfer endpoints have been added. These paths are not yet verified on physical devices; voice typing, PC audio streaming, automatic discovery, QR pairing, a complete Android file-transfer client, and production security hardening remain unfinished.
 
 ## Product goals
 
