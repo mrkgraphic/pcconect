@@ -56,7 +56,7 @@ async function handleHttp(req:IncomingMessage,res:ServerResponse){
 }
 const httpServer=createServer((req,res)=>{void handleHttp(req,res).catch(()=>{if(!res.headersSent)json(res,500,{error:"INTERNAL_ERROR"});else res.destroy();});});
 const wss=new WebSocketServer({server:httpServer,maxPayload:MAX_MESSAGE_BYTES});
-export type HostInfo={port:number;pairingCode:string;addresses:string[];status:"waiting"|"connected"};
+export type HostInfo={port:number;pairingCode:string;addresses:string[];status:"waiting"|"connected";qrDataUrl?:string};
 let onStatus:(status:HostInfo["status"])=>void=()=>undefined;
 let hostStarted=false;
 function getLocalIPv4Addresses():string[]{const result:string[]=[];for(const entries of Object.values(networkInterfaces()))for(const entry of entries??[])if(entry.family==="IPv4"&&!entry.internal&&!entry.address.startsWith("169.254."))result.push(entry.address);return [...new Set(result)];}
