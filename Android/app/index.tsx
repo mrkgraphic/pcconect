@@ -3,6 +3,7 @@ import { Alert, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollV
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 
 type PairResult = { type: "pairResult"; accepted: boolean; sessionToken?: string };
 const DEFAULT_PORT = "47831";
@@ -11,6 +12,9 @@ export default function HomeScreen() {
   const [address,setAddress]=useState(""); const [port,setPort]=useState(DEFAULT_PORT); const [pin,setPin]=useState("");
   const [status,setStatus]=useState("Not connected"); const [error,setError]=useState(""); const [paired,setPaired]=useState(false);
   const [draft,setDraft]=useState("");
+  const [voiceActive,setVoiceActive]=useState(false);
+  const [voiceLanguage,setVoiceLanguage]=useState("hi-IN");
+  const [voiceStatus,setVoiceStatus]=useState("Ready to listen");
   const [sharedFiles,setSharedFiles]=useState<Array<{name:string;size:number;modified:string}>>([]);
   const [transferStatus,setTransferStatus]=useState("");
   const [transferring,setTransferring]=useState(false);
@@ -33,7 +37,17 @@ export default function HomeScreen() {
     }
   })).current;
 
-  useEffect(()=>()=>{socket.current?.close();},[]);
+  useSpeechRecognitionEvent("start",()=>{setVoiceActive(true);setVoiceStatus("Listening…");});
+  useSpeechRecognitionEvent("end",()=>{setVoiceActive(false);setVoiceStatus("Voice capture stopped. Review the text before sending.");});
+  useSpeechRecognitionEvent("result",(event)=>{
+    const transcript=event.results?.[0]?.transcript;
+    if(transcript)setDraft(current=>event.isFinal?current+" "+transcript:transcript);
+  });
+  useSpeechRecognitionEvent("error",(event)=>{
+    setVoiceActive(false);
+    setVoiceStatus(event.error==="not-allowed"?"Microphone/speech permission denied":`Voice error: ${event.error}`);
+  });
+  useEffect(()=>()=>{socket.current?.close();ExpoSpeechRecognitionModule.abort();},[]);
   const connect=()=>{
     setError("");setPaired(false);token.current=null;socket.current?.close();
     const host=address.trim(),p=port.trim();
@@ -87,7 +101,18 @@ export default function HomeScreen() {
     }catch(e){setTransferStatus(e instanceof Error?e.message:"Download failed");}
     finally{setTransferring(false);}
   };
-  const sendText=()=>{if(draft.trim()){sendCommand({type:"text",text:draft});setDraft("");}};
+  const startVoice=async()=>{
+    if(!paired){setVoiceStatus("Connect to the PC first");return;}
+    try{
+      const permission=await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if(!permission.granted){setVoiceStatus("Microphone and speech permission are required");return;}
+      setDraft("");
+      setVoiceStatus("Starting microphone…");
+      ExpoSpeechRecognitionModule.start({lang:voiceLanguage,interimResults:true,continuous:false,addsPunctuation:true,maxAlternatives:1});
+    }catch(e){setVoiceStatus(e instanceof Error?e.message:"Could not start voice typing");}
+  };
+  const stopVoice=()=>ExpoSpeechRecognitionModule.stop();
+  const sendText=()=>{if(draft.trim()){sendCommand({type:"text",text:draft.trim()});setDraft("");setVoiceStatus("Reviewed text sent to PC");}};
   const key=(name:string)=>{sendCommand({type:"key",key:name,down:true});sendCommand({type:"key",key:name,down:false});};
 
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS==="ios"?"padding":undefined}>
@@ -107,6 +132,13 @@ export default function HomeScreen() {
         <View {...touchpad.panHandlers} style={styles.touchpad}><Text style={styles.touchText}>TOUCHPAD</Text><Text style={styles.hint}>Move · Tap to click</Text></View>
         <View style={styles.row}><Pressable style={styles.action} onPress={()=>{sendCommand({type:"mouseButton",button:"left",down:true});sendCommand({type:"mouseButton",button:"left",down:false});}}><Text style={styles.actionText}>Left Click</Text></Pressable><Pressable style={styles.action} onPress={()=>{sendCommand({type:"mouseButton",button:"right",down:true});sendCommand({type:"mouseButton",button:"right",down:false});}}><Text style={styles.actionText}>Right Click</Text></Pressable></View>
         <View style={styles.row}><Pressable style={styles.action} onPress={()=>sendCommand({type:"mouseScroll",delta:480})}><Text style={styles.actionText}>Scroll Up</Text></Pressable><Pressable style={styles.action} onPress={()=>sendCommand({type:"mouseScroll",delta:-480})}><Text style={styles.actionText}>Scroll Down</Text></Pressable></View>
+        <Text style={[styles.sectionTitle,{marginTop:18}]}>Voice Typing</Text>
+        <Text style={styles.hint}>Bol kar text banayein. PC par bhejne se pehle text yahin edit aur review kar sakte hain.</Text>
+        <View style={styles.row}>
+          {["hi-IN","en-IN","ur-PK"].map(lang=><Pressable key={lang} onPress={()=>setVoiceLanguage(lang)} style={[styles.keyButton,voiceLanguage===lang&&{backgroundColor:"#16865b"}]}><Text style={styles.actionText}>{lang}</Text></Pressable>)}
+        </View>
+        <Pressable onPress={voiceActive?stopVoice:startVoice} style={[styles.primary,voiceActive&&{backgroundColor:"#a34b42"}]}><Text style={styles.primaryText}>{voiceActive?"Stop Listening":"Start Voice Typing"}</Text></Pressable>
+        <Text style={styles.transferStatus}>{voiceStatus}</Text>
         <Text style={[styles.sectionTitle,{marginTop:18}]}>Keyboard / Text</Text><TextInput value={draft} onChangeText={setDraft} placeholder="Type text to send to focused PC app" placeholderTextColor="#71857a" style={styles.input} multiline/>
         <Pressable onPress={sendText} style={styles.primary}><Text style={styles.primaryText}>Send Text to PC</Text></Pressable>
         <View style={styles.row}>{["enter","backspace","tab","escape"].map(k=><Pressable key={k} onPress={()=>key(k)} style={styles.keyButton}><Text style={styles.actionText}>{k.toUpperCase()}</Text></Pressable>)}</View>
@@ -122,7 +154,7 @@ export default function HomeScreen() {
           <Pressable disabled={transferring} onPress={()=>downloadFile(file.name)} style={styles.downloadButton}><Text style={styles.actionText}>Download</Text></Pressable>
         </View>)}
       </View>}
-      <View style={styles.features}><Text style={styles.sectionTitle}>More features in development</Text>{["Voice typing with preview","Restricted two-way file transfer","PC audio on phone speaker","Automatic PC discovery and QR pairing"].map(item=><View key={item} style={styles.feature}><Text style={styles.featureMark}>•</Text><Text style={styles.featureText}>{item}</Text></View>)}</View>
+      <View style={styles.features}><Text style={styles.sectionTitle}>More features in development</Text>{["PC audio on phone speaker","Automatic PC discovery and QR pairing"].map(item=><View key={item} style={styles.feature}><Text style={styles.featureMark}>•</Text><Text style={styles.featureText}>{item}</Text></View>)}</View>
       <Text style={styles.footer}>Pair only with a PC you trust. Local network connection.</Text>
     </ScrollView>
   </KeyboardAvoidingView>;
