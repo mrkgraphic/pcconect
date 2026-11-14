@@ -2,7 +2,7 @@
 
 **MRK Connect** is a local-network companion system that connects an Android phone to a Windows PC over the same Wi-Fi network or a phone hotspot. Core local features are designed to work without internet access.
 
-> Project status: **Active development / partial implementation**. Windows pairing host, Android manual PIN pairing UI, a Windows native input helper, Android touchpad/keyboard controls, and restricted Windows file-transfer endpoints have been added. These paths are not yet verified on physical devices; voice typing, PC audio streaming, automatic discovery, QR pairing, a complete Android file-transfer client, and production security hardening remain unfinished.
+> Project status: **Active development / partial implementation**. Windows pairing host, Android manual PIN pairing UI, Windows native input helper, Android touchpad/keyboard controls (including drag/double-click and shortcuts), reviewed Android voice typing, and Android/Windows restricted file-transfer paths have been added. These features are not yet verified on physical devices. PC audio streaming, automatic discovery, QR pairing, persistent device revocation, and production security hardening remain unfinished.
 
 ## Product goals
 
@@ -62,15 +62,15 @@ pcconect/
 - [ ] Create authenticated session and device revocation.
 
 ### Phase 2 — Keyboard and voice
-- [ ] Implement live keyboard input and special keys/shortcuts.
-- [ ] Implement touchpad mouse: pointer movement, left/right/double click, scroll and drag.
+- [x] Implement live keyboard input and basic shortcuts (physical-device verification pending).
+- [x] Implement touchpad mouse: pointer movement, left/right/double click, scroll and drag (physical-device verification pending).
 - [ ] Preserve the proven keyboard behavior from the existing prototype during migration.
-- [ ] Add Android speech recognition, preview and send.
+- [x] Add Android speech recognition, preview and send (native device build and language testing pending).
 - [ ] Test language/device support and document offline speech limitations.
 
 ### Phase 3 — Two-way file transfer
-- [ ] Upload multiple files from Android to `MRK-Received`.
-- [ ] Browse only configured `MRK-Shared` content from Android.
+- [x] Upload a selected file from Android to `MRK-Received` (multi-file selection and transfer progress pending).
+- [x] Browse `MRK-Shared` and download selected files to Android (physical-device verification pending).
 - [ ] Add progress, cancellation, retry, notifications and file validation.
 
 ### Phase 4 — PC audio on Android
