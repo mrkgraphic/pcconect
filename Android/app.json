@@ -8,8 +8,26 @@
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.mrkgraphic.connect",
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE", "RECORD_AUDIO", "FOREGROUND_SERVICE"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "RECORD_AUDIO",
+        "FOREGROUND_SERVICE"
+      ]
     },
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow MRK Connect to use the microphone for voice typing.",
+          "speechRecognitionPermission": "Allow MRK Connect to convert your speech into text.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
+    ]
   }
 }
