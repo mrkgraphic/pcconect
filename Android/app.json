@@ -19,6 +19,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MRK Connect to scan a trusted Windows pairing QR code.",
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
         "expo-speech-recognition",
         {
           "microphonePermission": "Allow MRK Connect to use the microphone for voice typing.",
