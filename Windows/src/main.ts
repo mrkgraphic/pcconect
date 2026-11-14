@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
+import QRCode from "qrcode";
 import { startLocalHost, stopLocalHost, HostInfo } from "./server";
 
 let hostInfo: HostInfo | null = null;
@@ -30,6 +31,7 @@ app.whenReady().then(async () => {
         window.webContents.send("mrk:host-status", status);
       }
     });
+    hostInfo.qrDataUrl = await QRCode.toDataURL(JSON.stringify({ scheme: "mrkconnect", addresses: hostInfo.addresses, port: hostInfo.port, pairingCode: hostInfo.pairingCode }), { width: 260, margin: 2 });
   } catch (error) {
     console.error("Could not start local connection host:", error);
   }
