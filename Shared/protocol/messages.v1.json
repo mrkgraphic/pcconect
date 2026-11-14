@@ -1,0 +1,49 @@
+{
+  "protocolVersion": 1,
+  "transport": {
+    "discovery": ["mdns", "udp-broadcast", "manual-ip"],
+    "realtime": "websocket",
+    "files": "http-stream"
+  },
+  "messages": {
+    "hello": {
+      "required": ["protocolVersion", "deviceId", "deviceName", "capabilities"]
+    },
+    "pairRequest": {
+      "required": ["deviceId", "pairingCode"]
+    },
+    "pairResult": {
+      "required": ["accepted", "sessionToken"]
+    },
+    "keyboardInput": {
+      "required": ["sessionToken", "text"]
+    },
+    "keyboardKey": {
+      "required": ["sessionToken", "key", "action"]
+    },
+    "voiceText": {
+      "required": ["sessionToken", "text", "confirmed"]
+    },
+    "fileOffer": {
+      "required": ["sessionToken", "transferId", "name", "size", "direction"]
+    },
+    "fileProgress": {
+      "required": ["sessionToken", "transferId", "bytesTransferred"]
+    },
+    "notification": {
+      "required": ["sessionToken", "title", "body"]
+    },
+    "audioStart": {
+      "required": ["sessionToken", "codec", "sampleRate", "channels"]
+    },
+    "audioStop": {
+      "required": ["sessionToken"]
+    }
+  },
+  "security": [
+    "Every post-pairing message requires a valid session token.",
+    "Reject unknown protocol versions and unknown message types.",
+    "Never accept operating-system commands from a remote client.",
+    "Validate all message fields and enforce payload size limits."
+  ]
+}
