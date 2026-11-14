@@ -17,8 +17,8 @@ permissions:
 
 jobs:
   windows-electron:
-    name: Windows Electron typecheck/build
-    runs-on: ubuntu-latest
+    name: Windows Electron + native input build
+    runs-on: windows-latest
     defaults:
       run:
         working-directory: Windows
@@ -29,10 +29,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
       - name: Install dependencies
         run: npm install
       - name: Compile TypeScript
         run: npm run build
+      - name: Build native Windows input helper
+        run: npm run native:build
+      - name: Package Windows app
+        run: npm run pack
 
   android-expo:
     name: Android Expo typecheck
