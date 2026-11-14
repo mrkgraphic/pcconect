@@ -1,0 +1,28 @@
+{
+  "protocolVersion": 1,
+  "feature": "mouse",
+  "events": {
+    "mouseMove": {
+      "required": ["sessionToken", "dx", "dy"],
+      "description": "Relative pointer movement; dx and dy are bounded and rate-limited."
+    },
+    "mouseButton": {
+      "required": ["sessionToken", "button", "action"],
+      "button": ["left", "right", "middle"],
+      "action": ["down", "up", "click", "doubleClick"]
+    },
+    "mouseScroll": {
+      "required": ["sessionToken", "deltaX", "deltaY"]
+    },
+    "mouseDrag": {
+      "required": ["sessionToken", "dx", "dy", "button"],
+      "description": "Movement while a button is held; server must track button state per session."
+    }
+  },
+  "security": [
+    "All events require an authenticated paired-device session.",
+    "Validate numeric ranges and rate-limit movement events.",
+    "Release any held mouse buttons when the session disconnects.",
+    "Do not accept raw operating-system commands from the client."
+  ]
+}
