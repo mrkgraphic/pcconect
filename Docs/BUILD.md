@@ -40,10 +40,10 @@ Voice recognition uses a native Android module and therefore needs a development
 
 1. Start the Windows app and keep it open.
 2. Connect the Android phone and PC to the same Wi-Fi or phone hotspot.
-3. Copy one IPv4 address and the pairing PIN shown in the Windows window.
+3. Scan the QR code shown in the Windows window, or manually copy one IPv4 address and the pairing PIN.
 4. Enter the IP, port `47831`, and PIN in Android.
 5. Allow the Windows Firewall prompt only on Private networks you trust.
 
 ## Current limitations
 
-This is a development build, not a security-reviewed release. The current local WebSocket and HTTP endpoints use plain `ws://` and `http://`; do not use them on public, shared, or untrusted networks. Pairing credentials are currently process-lifetime credentials. Automatic discovery, QR pairing, PC audio streaming, persistent device revocation, and full transfer progress/cancellation are still pending. Android voice recognition and reviewed text submission are implemented in code but need a native device build and physical-device testing. Android upload/download UI is implemented but also needs end-to-end testing. Build success does not mean all product features are complete; verify the actual device workflow before relying on it.
+This is a development build, not a security-reviewed release. The current local WebSocket and HTTP endpoints use plain `ws://` and `http://`; do not use them on public, shared, or untrusted networks. Pairing credentials are currently process-lifetime credentials. Automatic discovery, PC audio streaming, persistent device revocation, and full transfer progress/cancellation are still pending. QR pairing, voice typing and file transfer are implemented in code but need a native device build and physical-device testing. Android voice recognition and reviewed text submission are implemented in code but need a native device build and physical-device testing. Android upload/download UI is implemented but also needs end-to-end testing. Build success does not mean all product features are complete; verify the actual device workflow before relying on it.
