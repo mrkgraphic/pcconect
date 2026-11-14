@@ -3,6 +3,7 @@ import { Alert, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollV
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 
 type PairResult = { type: "pairResult"; accepted: boolean; sessionToken?: string };
@@ -79,6 +80,23 @@ export default function HomeScreen() {
     setVoiceStatus(event.error==="not-allowed"?"Microphone/speech permission denied":`Voice error: ${event.error}`);
   });
   useEffect(()=>()=>{socket.current?.close();ExpoSpeechRecognitionModule.abort();},[]);
+  const openScanner=async()=>{
+    if(!cameraPermission?.granted){
+      const permission=await requestCameraPermission();
+      if(!permission.granted){setError("QR scan ke liye camera permission zaroori hai.");return;}
+    }
+    scanLocked.current=false;setScanVisible(true);setError("");
+  };
+  const handleQrScan=(data:string)=>{
+    if(scanLocked.current)return;
+    try{
+      const parsed=JSON.parse(data) as {scheme?:string;addresses?:string[];port?:number;pairingCode?:string};
+      const ip=parsed.addresses?.[0]??"";
+      if(parsed.scheme!=="mrkconnect"||!ip||!Number.isInteger(parsed.port)||!/^\\d{6}$/.test(parsed.pairingCode??""))throw new Error("Invalid MRK Connect QR");
+      scanLocked.current=true;setAddress(ip);setPort(String(parsed.port));setPin(parsed.pairingCode??"");setScanVisible(false);
+      setStatus("QR scanned. Ready to pair.");setError("");
+    }catch{setError("Ye valid MRK Connect pairing QR nahi hai.");}
+  };
   const connect=()=>{
     setError("");setPaired(false);token.current=null;socket.current?.close();
     const host=address.trim(),p=port.trim();
@@ -152,7 +170,10 @@ export default function HomeScreen() {
       <View style={styles.header}><View style={styles.logo}><Text style={styles.logoText}>MRK</Text></View><View><Text style={styles.title}>MRK Connect</Text><Text style={styles.subtitle}>Android companion for Windows</Text></View><Text style={styles.badge}>V0.1</Text></View>
       <View style={styles.hero}><Text style={styles.eyebrow}>LOCAL NETWORK CONNECTION</Text><Text style={styles.heading}>Your phone. Your PC. Connected.</Text><Text style={styles.description}>Dono devices ko same Wi-Fi ya phone hotspot par rakhein. Internet ki zaroorat nahi.</Text></View>
       <View style={styles.panel}>
-        <Text style={styles.sectionTitle}>Pair Windows PC</Text><Text style={styles.label}>PC IPv4 address</Text>
+        <Text style={styles.sectionTitle}>Pair Windows PC</Text>
+        <Pressable onPress={scanVisible?()=>setScanVisible(false):openScanner} style={styles.action}><Text style={styles.actionText}>{scanVisible?"Close QR Scanner":"Scan Windows QR Code"}</Text></Pressable>
+        {scanVisible&&<View style={styles.scanner}><CameraView style={{flex:1}} facing="back" barcodeScannerSettings={{barcodeTypes:["qr"]}} onBarcodeScanned={({data})=>handleQrScan(data)}/><Text style={styles.hint}>Windows app par dikh raha MRK Connect QR scan karein</Text></View>}
+        <Text style={styles.label}>PC IPv4 address</Text>
         <TextInput value={address} onChangeText={setAddress} placeholder="192.168.43.120" placeholderTextColor="#71857a" autoCapitalize="none" keyboardType="decimal-pad" style={styles.input}/>
         <View style={styles.row}><View style={styles.portBox}><Text style={styles.label}>Port</Text><TextInput value={port} onChangeText={setPort} keyboardType="number-pad" style={styles.input}/></View><View style={styles.pinBox}><Text style={styles.label}>6-digit Windows PIN</Text><TextInput value={pin} onChangeText={v=>setPin(v.replace(/\\D/g,"").slice(0,6))} keyboardType="number-pad" maxLength={6} secureTextEntry style={styles.input}/></View></View>
         <View style={styles.statusRow}><View style={[styles.dot,{backgroundColor:paired?"#65d99a":"#d6a64b"}]}/><Text style={styles.status}>{status}</Text></View>
@@ -199,7 +220,7 @@ const styles=StyleSheet.create({
  screen:{flex:1,backgroundColor:"#0b1210"},content:{paddingHorizontal:21,paddingTop:58,paddingBottom:28},
  header:{flexDirection:"row",alignItems:"center",gap:12},logo:{width:45,height:45,borderRadius:13,backgroundColor:"#16865b",alignItems:"center",justifyContent:"center"},logoText:{color:"#fff",fontWeight:"900"},title:{color:"#eef5f1",fontSize:18,fontWeight:"800"},subtitle:{color:"#a9bbb2",fontSize:12,marginTop:3},badge:{marginLeft:"auto",color:"#9ce2bb",fontSize:10,borderWidth:1,borderColor:"#345548",padding:7,borderRadius:12},
  hero:{marginTop:32,marginBottom:19},eyebrow:{color:"#79d6a5",fontSize:10,fontWeight:"800",letterSpacing:2},heading:{color:"#eef5f1",fontSize:30,fontWeight:"900",lineHeight:36,marginTop:10},description:{color:"#a9bbb2",fontSize:13,lineHeight:20,marginTop:9},
- panel:{backgroundColor:"#121f1a",borderColor:"#2c493b",borderWidth:1,borderRadius:16,padding:16,marginBottom:14},sectionTitle:{color:"#eef5f1",fontWeight:"800",fontSize:16,marginBottom:12},label:{color:"#9fb5a8",fontSize:11,fontWeight:"700",marginBottom:6},input:{backgroundColor:"#0b1510",borderColor:"#345344",borderWidth:1,borderRadius:9,color:"#f1f7f3",paddingHorizontal:12,paddingVertical:11,fontSize:14},
+ scanner:{height:230,overflow:"hidden",borderRadius:12,marginTop:12,marginBottom:10},panel:{backgroundColor:"#121f1a",borderColor:"#2c493b",borderWidth:1,borderRadius:16,padding:16,marginBottom:14},sectionTitle:{color:"#eef5f1",fontWeight:"800",fontSize:16,marginBottom:12},label:{color:"#9fb5a8",fontSize:11,fontWeight:"700",marginBottom:6},input:{backgroundColor:"#0b1510",borderColor:"#345344",borderWidth:1,borderRadius:9,color:"#f1f7f3",paddingHorizontal:12,paddingVertical:11,fontSize:14},
  row:{flexDirection:"row",gap:9,marginTop:11},portBox:{width:100},pinBox:{flex:1},statusRow:{flexDirection:"row",alignItems:"center",gap:8,marginTop:14},dot:{width:8,height:8,borderRadius:4},status:{color:"#d5e4db",fontSize:12},error:{color:"#ff9b91",fontSize:12,marginTop:8,lineHeight:17},
  primary:{backgroundColor:"#16865b",borderRadius:10,alignItems:"center",padding:13,marginTop:14},primaryText:{color:"#fff",fontWeight:"800",fontSize:14},hint:{color:"#9fb5a8",fontSize:11,lineHeight:17},
  touchpad:{height:190,backgroundColor:"#0b1510",borderColor:"#47735c",borderWidth:1,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:10},touchText:{color:"#a8e8c0",fontWeight:"900",letterSpacing:2,marginBottom:8},
