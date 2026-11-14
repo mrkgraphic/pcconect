@@ -5,9 +5,9 @@
   "description": "MRK Connect Windows desktop companion",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "npm run build && electron .",
+    "dev": "npm run build && npm run native:build && electron .",
     "build": "tsc -p tsconfig.json",
-    "start": "npm run build && electron .",
+    "start": "npm run build && npm run native:build && electron .",
     "native:build": "dotnet publish native/MrkInput/MrkInput.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o native/MrkInput/bin/Release/net8.0-windows",
     "pack": "npm run native:build && electron-builder --dir",
     "dist": "npm run native:build && electron-builder"
