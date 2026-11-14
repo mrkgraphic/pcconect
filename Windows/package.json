@@ -12,6 +12,9 @@
     "pack": "npm run native:build && electron-builder --dir",
     "dist": "npm run native:build && electron-builder"
   },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
   "build": {
     "appId": "com.mrkgraphic.connect",
     "productName": "MRK Connect",
@@ -24,10 +27,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
     "electron": "^38.0.0",
     "electron-builder": "^26.0.0",
-    "typescript": "^5.9.0",
-    "ws": "^8.18.3",
-    "@types/ws": "^8.18.1"
+    "typescript": "^5.9.0"
   }
 }
