@@ -16,6 +16,7 @@ const DISCOVERY_QUERY = "MRKDISCOVER_V1";
 export default function HomeScreen() {
   const [address,setAddress]=useState(""); const [port,setPort]=useState(DEFAULT_PORT); const [pin,setPin]=useState("");
   const [discoveredPcs,setDiscoveredPcs]=useState<DiscoveredPc[]>([]);
+  const discoveredPcsRef=useRef<DiscoveredPc[]>([]);
   const [discovering,setDiscovering]=useState(false);
   const [discoveryStatus,setDiscoveryStatus]=useState("Search for Windows PCs on this Wi-Fi");
   const discoverySocket=useRef<ReturnType<typeof UdpSockets.createSocket>|null>(null);
@@ -99,6 +100,7 @@ export default function HomeScreen() {
   };
   const discoverPcs=()=>{
     stopDiscovery();
+    discoveredPcsRef.current=[];
     setDiscoveredPcs([]);
     setDiscovering(true);
     setDiscoveryStatus("Searching local network…");
@@ -112,7 +114,12 @@ export default function HomeScreen() {
           if(response.type!=="mrkConnectHost"||response.version!==1||!Number.isInteger(response.port)||!response.addresses?.length)return;
           const ip=info.address||response.addresses[0];
           if(!ip)return;
-          setDiscoveredPcs(current=>current.some(pc=>pc.address===ip&&pc.port===response.port)?current:[...current,{address:ip,port:response.port!,label:"Windows PC"}]);
+          const found=discoveredPcsRef.current;
+          if(!found.some(pc=>pc.address===ip&&pc.port===response.port)){
+            const next=[...found,{address:ip,port:response.port!,label:"Windows PC"}];
+            discoveredPcsRef.current=next;
+            setDiscoveredPcs(next);
+          }
           setDiscoveryStatus("PC found. Select it, then enter the PIN shown on Windows.");
         }catch{/* Ignore unrelated UDP packets. */}
       });
@@ -126,7 +133,7 @@ export default function HomeScreen() {
         }catch(e){stopDiscovery(e instanceof Error?e.message:"Could not start network discovery");}
       });
       discoveryTimer.current=setTimeout(()=>{
-        const found=discoveredPcs.length;
+        const found=discoveredPcsRef.current.length;
         stopDiscovery(found?"Search complete. Select your Windows PC.":"No PC found. Check same Wi-Fi/hotspot and Windows app.");
       },5000);
     }catch(e){stopDiscovery(e instanceof Error?e.message:"UDP discovery is unavailable on this build");}
