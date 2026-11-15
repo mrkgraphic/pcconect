@@ -5,12 +5,21 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import UdpSockets from "react-native-udp";
 
 type PairResult = { type: "pairResult"; accepted: boolean; sessionToken?: string };
+type DiscoveredPc = { address: string; port: number; label: string };
 const DEFAULT_PORT = "47831";
+const DISCOVERY_PORT = 47832;
+const DISCOVERY_QUERY = "MRKDISCOVER_V1";
 
 export default function HomeScreen() {
   const [address,setAddress]=useState(""); const [port,setPort]=useState(DEFAULT_PORT); const [pin,setPin]=useState("");
+  const [discoveredPcs,setDiscoveredPcs]=useState<DiscoveredPc[]>([]);
+  const [discovering,setDiscovering]=useState(false);
+  const [discoveryStatus,setDiscoveryStatus]=useState("Search for Windows PCs on this Wi-Fi");
+  const discoverySocket=useRef<ReturnType<typeof UdpSockets.createSocket>|null>(null);
+  const discoveryTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [status,setStatus]=useState("Not connected"); const [error,setError]=useState(""); const [paired,setPaired]=useState(false);
   const [draft,setDraft]=useState("");
   const [voiceActive,setVoiceActive]=useState(false);
@@ -79,7 +88,54 @@ export default function HomeScreen() {
     setVoiceActive(false);
     setVoiceStatus(event.error==="not-allowed"?"Microphone/speech permission denied":`Voice error: ${event.error}`);
   });
-  useEffect(()=>()=>{socket.current?.close();ExpoSpeechRecognitionModule.abort();},[]);
+  useEffect(()=>()=>{socket.current?.close();discoverySocket.current?.close();if(discoveryTimer.current)clearTimeout(discoveryTimer.current);ExpoSpeechRecognitionModule.abort();},[]);
+
+  const stopDiscovery=(message?:string)=>{
+    if(discoveryTimer.current){clearTimeout(discoveryTimer.current);discoveryTimer.current=null;}
+    try{discoverySocket.current?.close();}catch{}
+    discoverySocket.current=null;
+    setDiscovering(false);
+    if(message)setDiscoveryStatus(message);
+  };
+  const discoverPcs=()=>{
+    stopDiscovery();
+    setDiscoveredPcs([]);
+    setDiscovering(true);
+    setDiscoveryStatus("Searching local network…");
+    try{
+      const udp=UdpSockets.createSocket({type:"udp4"});
+      discoverySocket.current=udp;
+      udp.on("error",(err:Error)=>stopDiscovery("Discovery error: "+err.message));
+      udp.on("message",(message:any,info:{address:string;port:number})=>{
+        try{
+          const response=JSON.parse(message.toString("utf8")) as {type?:string;version?:number;port?:number;addresses?:string[]};
+          if(response.type!=="mrkConnectHost"||response.version!==1||!Number.isInteger(response.port)||!response.addresses?.length)return;
+          const ip=info.address||response.addresses[0];
+          if(!ip)return;
+          setDiscoveredPcs(current=>current.some(pc=>pc.address===ip&&pc.port===response.port)?current:[...current,{address:ip,port:response.port!,label:"Windows PC"}]);
+          setDiscoveryStatus("PC found. Select it, then enter the PIN shown on Windows.");
+        }catch{/* Ignore unrelated UDP packets. */}
+      });
+      udp.bind(0);
+      udp.once("listening",()=>{
+        try{
+          udp.setBroadcast(true);
+          udp.send(DISCOVERY_QUERY,undefined,undefined,DISCOVERY_PORT,"255.255.255.255",(err?:Error)=>{
+            if(err)stopDiscovery("Could not send discovery request: "+err.message);
+          });
+        }catch(e){stopDiscovery(e instanceof Error?e.message:"Could not start network discovery");}
+      });
+      discoveryTimer.current=setTimeout(()=>{
+        const found=discoveredPcs.length;
+        stopDiscovery(found?"Search complete. Select your Windows PC.":"No PC found. Check same Wi-Fi/hotspot and Windows app.");
+      },5000);
+    }catch(e){stopDiscovery(e instanceof Error?e.message:"UDP discovery is unavailable on this build");}
+  };
+  const chooseDiscoveredPc=(pc:DiscoveredPc)=>{
+    setAddress(pc.address);setPort(String(pc.port));setPin("");
+    setDiscoveryStatus("PC selected. Enter the 6-digit PIN displayed in the Windows app.");
+    setError("");
+  };
   const openScanner=async()=>{
     if(!cameraPermission?.granted){
       const permission=await requestCameraPermission();
@@ -172,6 +228,9 @@ export default function HomeScreen() {
       <View style={styles.panel}>
         <Text style={styles.sectionTitle}>Pair Windows PC</Text>
         <Pressable onPress={scanVisible?()=>setScanVisible(false):openScanner} style={styles.action}><Text style={styles.actionText}>{scanVisible?"Close QR Scanner":"Scan Windows QR Code"}</Text></Pressable>
+        <Pressable onPress={discovering?()=>stopDiscovery("Search cancelled"):discoverPcs} style={[styles.action,{marginTop:9}]}><Text style={styles.actionText}>{discovering?"Stop PC Search":"Find Windows PCs Automatically"}</Text></Pressable>
+        <Text style={styles.hint}>{discoveryStatus}</Text>
+        {discoveredPcs.map(pc=><Pressable key={pc.address+":"+pc.port} onPress={()=>chooseDiscoveredPc(pc)} style={styles.discoveredPc}><View style={{flex:1}}><Text style={styles.fileName}>{pc.label}</Text><Text style={styles.hint}>{pc.address}:{pc.port}</Text></View><Text style={styles.actionText}>Select</Text></Pressable>)}
         {scanVisible&&<View style={styles.scanner}><CameraView style={{flex:1}} facing="back" barcodeScannerSettings={{barcodeTypes:["qr"]}} onBarcodeScanned={({data})=>handleQrScan(data)}/><Text style={styles.hint}>Windows app par dikh raha MRK Connect QR scan karein</Text></View>}
         <Text style={styles.label}>PC IPv4 address</Text>
         <TextInput value={address} onChangeText={setAddress} placeholder="192.168.43.120" placeholderTextColor="#71857a" autoCapitalize="none" keyboardType="decimal-pad" style={styles.input}/>
@@ -220,7 +279,7 @@ const styles=StyleSheet.create({
  screen:{flex:1,backgroundColor:"#0b1210"},content:{paddingHorizontal:21,paddingTop:58,paddingBottom:28},
  header:{flexDirection:"row",alignItems:"center",gap:12},logo:{width:45,height:45,borderRadius:13,backgroundColor:"#16865b",alignItems:"center",justifyContent:"center"},logoText:{color:"#fff",fontWeight:"900"},title:{color:"#eef5f1",fontSize:18,fontWeight:"800"},subtitle:{color:"#a9bbb2",fontSize:12,marginTop:3},badge:{marginLeft:"auto",color:"#9ce2bb",fontSize:10,borderWidth:1,borderColor:"#345548",padding:7,borderRadius:12},
  hero:{marginTop:32,marginBottom:19},eyebrow:{color:"#79d6a5",fontSize:10,fontWeight:"800",letterSpacing:2},heading:{color:"#eef5f1",fontSize:30,fontWeight:"900",lineHeight:36,marginTop:10},description:{color:"#a9bbb2",fontSize:13,lineHeight:20,marginTop:9},
- scanner:{height:230,overflow:"hidden",borderRadius:12,marginTop:12,marginBottom:10},panel:{backgroundColor:"#121f1a",borderColor:"#2c493b",borderWidth:1,borderRadius:16,padding:16,marginBottom:14},sectionTitle:{color:"#eef5f1",fontWeight:"800",fontSize:16,marginBottom:12},label:{color:"#9fb5a8",fontSize:11,fontWeight:"700",marginBottom:6},input:{backgroundColor:"#0b1510",borderColor:"#345344",borderWidth:1,borderRadius:9,color:"#f1f7f3",paddingHorizontal:12,paddingVertical:11,fontSize:14},
+ scanner:{height:230,overflow:"hidden",borderRadius:12,marginTop:12,marginBottom:10},discoveredPc:{flexDirection:"row",alignItems:"center",backgroundColor:"#20372c",borderRadius:9,padding:11,marginTop:8},panel:{backgroundColor:"#121f1a",borderColor:"#2c493b",borderWidth:1,borderRadius:16,padding:16,marginBottom:14},sectionTitle:{color:"#eef5f1",fontWeight:"800",fontSize:16,marginBottom:12},label:{color:"#9fb5a8",fontSize:11,fontWeight:"700",marginBottom:6},input:{backgroundColor:"#0b1510",borderColor:"#345344",borderWidth:1,borderRadius:9,color:"#f1f7f3",paddingHorizontal:12,paddingVertical:11,fontSize:14},
  row:{flexDirection:"row",gap:9,marginTop:11},portBox:{width:100},pinBox:{flex:1},statusRow:{flexDirection:"row",alignItems:"center",gap:8,marginTop:14},dot:{width:8,height:8,borderRadius:4},status:{color:"#d5e4db",fontSize:12},error:{color:"#ff9b91",fontSize:12,marginTop:8,lineHeight:17},
  primary:{backgroundColor:"#16865b",borderRadius:10,alignItems:"center",padding:13,marginTop:14},primaryText:{color:"#fff",fontWeight:"800",fontSize:14},hint:{color:"#9fb5a8",fontSize:11,lineHeight:17},
  touchpad:{height:190,backgroundColor:"#0b1510",borderColor:"#47735c",borderWidth:1,borderRadius:13,alignItems:"center",justifyContent:"center",marginTop:10},touchText:{color:"#a8e8c0",fontWeight:"900",letterSpacing:2,marginBottom:8},
