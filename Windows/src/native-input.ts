@@ -23,14 +23,14 @@ export class NativeInput {
     this.child = child;
     const lines = readline.createInterface({ input: child.stdout });
     lines.on("line", (line) => {
-      try { this.ready = JSON.parse(line).ok === true; } catch { this.ready = false; }
+      try { const message = JSON.parse(line) as { ready?: boolean; ok?: boolean; error?: string }; if (message.ready === true) this.ready = true; else if (message.ok === false) this.ready = false; } catch { this.ready = false; }
     });
     child.on("error", () => { this.ready = false; this.child = null; });
     child.on("exit", () => { this.ready = false; this.child = null; });
   }
 
   send(command: InputCommand): boolean {
-    if (!this.child || this.child.killed || !this.child.stdin.writable) return false;
+    if (!this.child || this.child.killed || !this.child.stdin.writable || !this.ready) return false;
     this.child.stdin.write(JSON.stringify(command) + "\n");
     return true;
   }
