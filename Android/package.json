@@ -20,7 +20,8 @@
     "expo-file-system": "~19.0.21",
     "expo-sharing": "~14.0.7",
     "expo-speech-recognition": "sdk-54",
-    "expo-camera": "~17.0.8"
+    "expo-camera": "~17.0.8",
+    "react-native-udp": "^4.1.7"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
