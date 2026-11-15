@@ -19,6 +19,9 @@ export default function HomeScreen() {
   const discoveredPcsRef=useRef<DiscoveredPc[]>([]);
   const [discovering,setDiscovering]=useState(false);
   const [discoveryStatus,setDiscoveryStatus]=useState("Search for Windows PCs on this Wi-Fi");
+  const [scanVisible,setScanVisible]=useState(false);
+  const scanLocked=useRef(false);
+  const [cameraPermission,requestCameraPermission]=useCameraPermissions();
   const discoverySocket=useRef<ReturnType<typeof UdpSockets.createSocket>|null>(null);
   const discoveryTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [status,setStatus]=useState("Not connected"); const [error,setError]=useState(""); const [paired,setPaired]=useState(false);
