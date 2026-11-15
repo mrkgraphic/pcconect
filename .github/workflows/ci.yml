@@ -43,7 +43,7 @@ jobs:
         run: npm run pack
 
   android-expo:
-    name: Android Expo typecheck
+    name: Android Expo native build + typecheck
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,7 +55,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
       - name: Install dependencies
         run: npm install
       - name: Typecheck
         run: npm run typecheck
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+      - name: Build Android debug APK
+        working-directory: Android/android
+        run: ./gradlew assembleDebug --no-daemon
