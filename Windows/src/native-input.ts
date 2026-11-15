@@ -23,7 +23,7 @@ export class NativeInput {
     this.child = child;
     const lines = readline.createInterface({ input: child.stdout });
     lines.on("line", (line) => {
-      try { const message = JSON.parse(line) as { ready?: boolean; ok?: boolean; error?: string }; if (message.ready === true) this.ready = true; else if (message.ok === false) this.ready = false; } catch { this.ready = false; }
+      try { const message = JSON.parse(line) as { ready?: boolean; ok?: boolean; error?: string }; if (message.ready === true) this.ready = true; else if (message.ok === false) console.warn("MRK native input rejected command:", message.error ?? "Unknown error"); } catch { this.ready = false; }
     });
     child.on("error", () => { this.ready = false; this.child = null; });
     child.on("exit", () => { this.ready = false; this.child = null; });
