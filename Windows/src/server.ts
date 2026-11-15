@@ -1,4 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { createSocket, Socket } from "node:dgram";
 import { networkInterfaces } from "node:os";
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
@@ -9,7 +10,7 @@ import { Transform } from "node:stream";
 import { WebSocketServer, WebSocket } from "ws";
 import { NativeInput } from "./native-input";
 
-const PORT=47831,MAX_MESSAGE_BYTES=16*1024,MAX_FILE_BYTES=100*1024*1024;
+const PORT=47831,DISCOVERY_PORT=47832,DISCOVERY_QUERY="MRKDISCOVER_V1",MAX_MESSAGE_BYTES=16*1024,MAX_FILE_BYTES=100*1024*1024;
 const pairingCode=String(randomInt(100000,1000000));
 const sessions=new Map<WebSocket,Buffer>();
 const attemptsByIp=new Map<string,{count:number;resetAt:number}>();
@@ -75,6 +76,18 @@ const wss=new WebSocketServer({server:httpServer,maxPayload:MAX_MESSAGE_BYTES,pe
 export type HostInfo={port:number;pairingCode:string;addresses:string[];status:"waiting"|"connected";qrDataUrl?:string};
 let onStatus:(status:HostInfo["status"])=>void=()=>undefined;
 let hostStarted=false;
+let discoverySocket:Socket|null=null;
+function startDiscovery(){
+  if(discoverySocket)return;
+  const socket=createSocket("udp4");discoverySocket=socket;
+  socket.on("message",(message,remote)=>{
+    if(message.toString("utf8").trim()!==DISCOVERY_QUERY)return;
+    const response=Buffer.from(JSON.stringify({type:"mrkConnectHost",version:1,port:PORT,addresses:getLocalIPv4Addresses()}));
+    socket.send(response,remote.port,remote.address);
+  });
+  socket.on("error",()=>{socket.close();if(discoverySocket===socket)discoverySocket=null;});
+  socket.bind(DISCOVERY_PORT,"0.0.0.0");
+}
 function getLocalIPv4Addresses():string[]{const result:string[]=[];for(const entries of Object.values(networkInterfaces()))for(const entry of entries??[])if(entry.family==="IPv4"&&!entry.internal&&!entry.address.startsWith("169.254."))result.push(entry.address);return [...new Set(result)];}
 function send(ws:WebSocket,value:unknown){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(value));}
 function safeEqual(a:string,b:string):boolean{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
@@ -90,5 +103,5 @@ wss.on("connection",(ws,request)=>{const ip=request.socket.remoteAddress??"unkno
     }
     if(sessions.size===0)onStatus("waiting");
   });});
-export function startLocalHost(callback:(status:HostInfo["status"])=>void):Promise<HostInfo>{onStatus=callback;nativeInput.start();return new Promise((resolve,reject)=>{httpServer.once("error",reject);httpServer.listen(PORT,"0.0.0.0",()=>{httpServer.removeListener("error",reject);hostStarted=true;resolve({port:PORT,pairingCode,addresses:getLocalIPv4Addresses(),status:"waiting"});});});}
-export function stopLocalHost():Promise<void>{if(!hostStarted){nativeInput.stop();return Promise.resolve();}hostStarted=false;sessions.clear();nativeInput.stop();for(const client of wss.clients)client.close(1001,"Host shutting down");return new Promise(resolve=>{wss.close(()=>httpServer.close(()=>resolve()));});}
+export function startLocalHost(callback:(status:HostInfo["status"])=>void):Promise<HostInfo>{onStatus=callback;nativeInput.start();startDiscovery();return new Promise((resolve,reject)=>{httpServer.once("error",reject);httpServer.listen(PORT,"0.0.0.0",()=>{httpServer.removeListener("error",reject);hostStarted=true;resolve({port:PORT,pairingCode,addresses:getLocalIPv4Addresses(),status:"waiting"});});});}
+export function stopLocalHost():Promise<void>{if(!hostStarted){nativeInput.stop();return Promise.resolve();}hostStarted=false;sessions.clear();nativeInput.stop();if(discoverySocket){discoverySocket.close();discoverySocket=null;}for(const client of wss.clients)client.close(1001,"Host shutting down");return new Promise(resolve=>{wss.close(()=>httpServer.close(()=>resolve()));});}
