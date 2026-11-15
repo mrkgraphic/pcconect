@@ -77,6 +77,11 @@ export type HostInfo={port:number;pairingCode:string;addresses:string[];status:"
 let onStatus:(status:HostInfo["status"])=>void=()=>undefined;
 let hostStarted=false;
 let discoverySocket:Socket|null=null;
+function stopDiscovery(){
+  const socket=discoverySocket;
+  discoverySocket=null;
+  if(socket){try{socket.close();}catch{/* Socket may already be closed. */}}
+}
 function startDiscovery(){
   if(discoverySocket)return;
   const socket=createSocket("udp4");discoverySocket=socket;
@@ -85,7 +90,7 @@ function startDiscovery(){
     const response=Buffer.from(JSON.stringify({type:"mrkConnectHost",version:1,port:PORT,addresses:getLocalIPv4Addresses()}));
     socket.send(response,remote.port,remote.address);
   });
-  socket.on("error",()=>{socket.close();if(discoverySocket===socket)discoverySocket=null;});
+  socket.on("error",()=>{if(discoverySocket===socket)discoverySocket=null;try{socket.close();}catch{/* Ignore an already closed socket. */}});
   socket.bind(DISCOVERY_PORT,"0.0.0.0");
 }
 function getLocalIPv4Addresses():string[]{const result:string[]=[];for(const entries of Object.values(networkInterfaces()))for(const entry of entries??[])if(entry.family==="IPv4"&&!entry.internal&&!entry.address.startsWith("169.254."))result.push(entry.address);return [...new Set(result)];}
@@ -103,5 +108,5 @@ wss.on("connection",(ws,request)=>{const ip=request.socket.remoteAddress??"unkno
     }
     if(sessions.size===0)onStatus("waiting");
   });});
-export function startLocalHost(callback:(status:HostInfo["status"])=>void):Promise<HostInfo>{onStatus=callback;nativeInput.start();startDiscovery();return new Promise((resolve,reject)=>{httpServer.once("error",reject);httpServer.listen(PORT,"0.0.0.0",()=>{httpServer.removeListener("error",reject);hostStarted=true;resolve({port:PORT,pairingCode,addresses:getLocalIPv4Addresses(),status:"waiting"});});});}
-export function stopLocalHost():Promise<void>{if(!hostStarted){nativeInput.stop();return Promise.resolve();}hostStarted=false;sessions.clear();nativeInput.stop();if(discoverySocket){discoverySocket.close();discoverySocket=null;}for(const client of wss.clients)client.close(1001,"Host shutting down");return new Promise(resolve=>{wss.close(()=>httpServer.close(()=>resolve()));});}
+export function startLocalHost(callback:(status:HostInfo["status"])=>void):Promise<HostInfo>{onStatus=callback;nativeInput.start();startDiscovery();return new Promise((resolve,reject)=>{const onError=(error:Error)=>{httpServer.removeListener("listening",onListening);stopDiscovery();nativeInput.stop();reject(error);};const onListening=()=>{httpServer.removeListener("error",onError);hostStarted=true;resolve({port:PORT,pairingCode,addresses:getLocalIPv4Addresses(),status:"waiting"});};httpServer.once("error",onError);httpServer.once("listening",onListening);httpServer.listen(PORT,"0.0.0.0");});}
+export function stopLocalHost():Promise<void>{if(!hostStarted){stopDiscovery();nativeInput.stop();return Promise.resolve();}hostStarted=false;sessions.clear();nativeInput.stop();stopDiscovery();for(const client of wss.clients)client.close(1001,"Host shutting down");return new Promise(resolve=>{wss.close(()=>httpServer.close(()=>resolve()));});}
